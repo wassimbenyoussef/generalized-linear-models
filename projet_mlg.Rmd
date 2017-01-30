@@ -1,0 +1,444 @@
+---
+title: "Projet_MLG"
+author: "Karim Assaad, Wassim Ben Youssef et Yoann Dacruz"
+date: "26 novembre 2015"
+output: pdf_document
+toc: yes
+---
+
+```{r echo=FALSE}
+load("/Users/wassim/Desktop/MLG/projet/hedonic.rda")
+head(Hedonic)
+
+
+test <- sample(c(0,1), 506, replace=TRUE)
+head(test)
+Hedonic <- cbind(Hedonic, test)
+#table(test)
+#str(Hedonic)
+#idx <- which(Hedonic[,16]==1)
+#Hedonic[idx,5]
+
+Hedonic.train<-subset(Hedonic,Hedonic$test==1,-test)
+Hedonic.test<-subset(Hedonic,test==0,-test)
+
+```
+
+#Première Partie:Description du jeu de donnée et analyse exploratoire
+
+##Introduction
+<p> Le projet traité ici propose d'appliquer des modéles de régression et de régularisation dans le but d'élaborer un modéle prédictif d'un jeu de données.</p>
+
+<p> Le jeu de données "Hedonic" a ete choisi pour cette etude parmi les différents jeu de données proposés. Ce jeu de données recense le prix médian des maisons pour des secteurs de la ville de Boston évalué à partir de plusieurs facteurs économiques et sociaux en 1970.</p>
+
+<p> Le jeu de données Hedonic" posséde ainsi 15 variables pour un total de 506 secteurs. La principale variable qu'il faut prédire en fonction des autres variables est la variable "mv" qui est le prix médian des maison d'un secteur. Parmi toutes ces variables, une est qualitative : la variable "chas" qui informe par oui ou par non si le secteur est situé dans les environs de la riviére Charles. Les autres variables, toutes quantitatives sont :</p>
+* "crim rate" qui informe du taux de criminalité du secteur
+* "zn" qui est le nombre de lots résidentiels d'une superficie de 25000 pieds carrés 
+* "indus" qui est la proportion d'acres (une unité de mesure équivalente à l'hectare) d'industries et de commerces interentreprises (inversement au commerce de détail) 
+* "nox" la concentration d'oxyde d'azote annuelle moyenne en pour centaine de millions 
+* "rm" le nombre moyen de piéces par maison 
+* "age" la proportion de propriétés construites avant 1940 
+* "dis" les distance pondérées à cinq centre d'emplois dans la région de Boston 
+* "rad" l'index d'accessibilité à des voies de circulation importantes joignant le centre de l'agglomération à une voie périphérique ou à une ville de province 
+* "tax" le taux de la valeur de l'impét foncier en $/10000$ (dollar par 10000 dollars) 
+* "pratio" le ratio d'éléves par professeurs 
+* "blacks" la proportion de personnes noirs dans la population 
+* "lstat" la proportion de la population ayant un statut social bas 
+* "townid" l'identifiant de la ville 
+
+
+##Description des données
+```{r echo=FALSE}
+
+#par(mfrow=c(1,1))
+plot(ecdf(Hedonic.train$mv),main="Fonction de répartition", xlab="")
+hist(Hedonic.train$mv,main="Histogramme",xlab="")
+plot(density(Hedonic.train$mv),main="Estimation de densité",xlab="")
+rug(Hedonic.train$mv)
+title(outer=TRUE, main ="\nDistribution de la variable réponse",sub="Pourcentage de votes nuls")
+
+```
+
+<p> D'après l'histogramme de la variable mv, nous pouvons voir qu'on a une forte concentration des valeurs de mv aux alentours de 10. Nous observons aussi une fréquence maximale de 135 pour des valeurs de mv entre 9.75 et 10. Nous arrivons aux mêmes conclusion en effectuant l'analyse du tracé de l'estimation de densité de cette variable.</p>
+
+
+```{r echo=FALSE}
+par(mfrow=c(1,1))
+boxplot(Hedonic.train, main="Box-Plot des varaibles quantitative")
+#boxplot(Hedonic.train$mv)
+#boxplot(Hedonic.train$crim)
+#boxplot(Hedonic.train$zn)
+#boxplot(Hedonic.train$indus)
+#boxplot(Hedonic.train$nox)
+#boxplot(Hedonic.train$rm)
+#boxplot(Hedonic.train$age)
+#boxplot(Hedonic.train$dis)
+#boxplot(Hedonic.train$rad)
+#boxplot(Hedonic.train$tax)
+#boxplot(Hedonic.train$ptratio)
+#boxplot(Hedonic.train$blacks)
+#boxplot(Hedonic.train$lstat)
+#boxplot(Hedonic.train$townid)
+
+```
+<p>En traçant les box-plots pour chacune des variables, nous remarquons que pour les variables mv, crim, zn, rm et blacks </p>
+
+
+```{r echo=FALSE}
+are.factor  <-sapply(Hedonic.train, is.factor)
+#install.packages("GGally")
+#library(GGally)
+
+#install.packages(ggally)
+
+#are.factor  <-sapply(Hedonic, is.factor)
+#ggpairs(Hedonic, columns =which(!are.factor))
+
+```
+
+<p>Commentaire</p>
+
+```{r echo=FALSE}
+heatmap(abs(cor(Hedonic.train[, !are.factor])),main="Heatmap")
+
+
+```
+
+<p> En observant la matrice des corrélations entre les variables, nous concluons que 3 paires de variables sont corrélées : mv avec lstat, tax avec rad et dis avec nox. Cela signifie que nous pouvons expliquer une variable par l'autre. </p>
+
+
+```{r echo=FALSE}
+nb_manquantes<-sapply(Hedonic.train, function(x) sum(length(which(is.na(x))))) 
+nb_manquantes
+
+```
+<p> D'après ce tableau, le jeu de données Hedonic ne contient pas de valeurs manquantes.</p>
+
+
+
+
+#Deuxieme Partie:Description des méthodes appliquées
+
+
+##Modèle prédictif et interprétable pour la variable mv
+```{r echo=FALSE}
+Hedonic.train$chas<-as.numeric(Hedonic.train$chas)
+full<-lm(mv~., Hedonic.train)
+summary(full)$coefficient
+null<-lm(mv~1, Hedonic.train)
+summary(null)$coefficient
+
+#calcul de l'erreur
+calcul_erreur<-full$coefficients[1]+full$coefficients[2]*Hedonic.train[2]+full$coefficients[3]*Hedonic.train[3]+full$coefficients[4]*Hedonic.train[4]+full$coefficients[6]*Hedonic.train[6]+full$coefficients[7]*Hedonic.train[7]+full$coefficients[8]*Hedonic.train[8]+full$coefficients[9]*Hedonic.train[9]+full$coefficients[10]*Hedonic.train[10]+full$coefficients[11]*Hedonic.train[11]+full$coefficients[12]*Hedonic.train[12]+full$coefficients[13]*Hedonic.train[13]+full$coefficients[14]*Hedonic.train[14]
+
+calcul_erreur<-Hedonic.train[1]-calcul_erreur
+calcul_erreur
+erreur<-mean(calcul_erreur$mv)
+erreur
+```  
+<p> Dans le summary de full nous pouvons voir que les estimations de chacun des coefficients est assez bonne puisque l'erreur standard la plus importante est celle du coefficient "blacks" et est de 0.147. Cependant, l'intercept est assez mal estimé avec un modèle utilisant tout les coefficients, il est mieux estimé dans "null" lorsqu'on ne prend aucune variable et l'on voit que son erreur standard est de 0.025. Nous pouvons penser au vu des erreurs standards obtenues que notre modèle est assez bon. </p>
+
+<p> Pour faire une estimation de l'erreur, nous décidons de soustraire à la colonne des "mv" le modèle full obtenu, puis de faire la moyenne de cette colonne. Nous trouvons alors une erreur de 0.016, le modèle trouvé précedemment a donc une erreur assez faible pour ce modèle full. </p>
+  
+
+```{r echo=FALSE}
+library(leaps)
+out <- regsubsets(mv ~ . , data=Hedonic.train,nbest=500, really.big=TRUE, nvmax=14)
+bss <- summary(out)
+bss.size <- as.numeric(rownames(bss$which))
+
+intercept <- lm(mv ~ 1, data=Hedonic.train)
+intercept
+
+bss.best.rss <- c(sum(resid(intercept)^2), tapply(bss$rss, bss.size, min))
+bss.best.rss
+
+plot(0:14, bss.best.rss, ylim=c(0, 100), type="b",xlab="subset size", ylab="RSS", col="red2" )
+
+points(bss.size, bss$rss, pch=20, col="gray", cex=0.7)
+```
+<p> Le graphe montre bien que plus nous prenons un nombre important de variables dans le modèle, plus l'estimation des résidus est faible.   Donc le meilleur modèle est celui qui prend en compte toutes les variables.</p>
+
+
+```{r echo=FALSE}
+bss.best.cp <- c(sum(resid(intercept)^2), tapply(bss$cp, bss.size, min))
+bss.best.cp
+
+plot(0:14, bss.best.cp, ylim=c(0, 400), type="b",xlab="subset size", ylab="CP", col="red2" )
+points(bss.size, bss$cp, pch=20, col="gray", cex=0.7)
+```
+
+<p> Le graphe montre que le coefficient Cp diminue plus le nombre de variables prises pour le modèle est important et ceci jusqu'à la dixième variable, ce qui signifie que plus l'on prend de variables, plus le modèle est bon jusqu'à la dixième variable. A partir de 10 variables, on observe cependant une légère augmentation du coefficient Cp, et ceci jusqu'à la quatorzième variable, mais pour le modèle à 14 variables, il n'y a qu'un seul modèle. Donc le modèle à 14 variables semble également bon.</p>
+
+```{r echo=FALSE}
+
+lower <- ~1
+upper <- ~mv~crim+zn+indus+nox+rm+age+dis+rad+tax+ptratio+blacks+lstat+townid
+scope <- list(lower=lower,upper=upper)
+
+#AIC.fwd <- step(null, scope, direction="forward" , trace=FALSE)
+#AIC.fwd
+#AIC.bwd <- step(full, scope, direction="backward", trace=FALSE)
+#AIC.bwd
+step.AIC <-step(lm(mv~.,Hedonic.train),k=2)
+
+step.BIC <-step(lm(mv~.,Hedonic.train),k=log(nrow(Hedonic.train)))
+
+aic.anova<-step.AIC$anova
+aic.anova
+
+bic.anova<-step.BIC$anova
+bic.anova
+
+summary(step.AIC)
+
+summary(step.BIC)
+
+plot(step.AIC)
+
+
+plot(step.BIC)
+
+
+```
+
+<p> En utilisant le critère AIC, on trouve qu'il est plus précis d'utiliser 5 variables pour avoir le meilleur modèle, les variables "age", "indus", "zn", "townid" et "chas" tandis que l'utilisation du critère BIC montre que le meilleur modèle est celui à 6 variables en ajoutant la variable "blacks". </p>
+
+
+<p> A présent, utilisons la validation croisée pour trouver une valeur de lambda. Nous utiliserons un fold de 10 puis un fold qui sera le nombre d'individus contenus dans le tableau. </p>
+```{r echo=FALSE}
+library(glmnet)
+
+
+
+x <- as.matrix(Hedonic.train[,-1])
+y <- Hedonic.train$mv
+
+ridge.min<-cv.glmnet(x,y,alpha=0, nfolds=10)#nfolds validation croiseeleave one out a revoire
+n <-nrow(Hedonic.train)
+ridge.1se<-cv.glmnet(x,y,alpha=0,nfolds=n,grouped=FALSE)#pas sur
+ridge.var<-glmnet(x,y,alpha=0)
+
+#ridge.path<-
+ 
+plot(ridge.1se)
+plot(ridge.min)
+
+```
+
+<p> Le modèle du ridge calculé par la règle du minimum et celui calculé par la règle du "1 standard error" semblent quasiment identiques, la courbe d'évolution de l'erreur en fonction de lambda étant identiques pour les deux. </p>
+
+```{r echo=FALSE}
+
+log(ridge.1se$lambda.min)
+log(ridge.1se$lambda.1se)
+
+
+lbs_fun <- function(ridge.var, ...) {
+        L <- length(ridge.var$lambda)
+        x <- log(ridge.var$lambda[L])
+        y <- ridge.var$beta[, L]
+        labs <- names(y)
+        text(x, y, labels=labs, ...)
+        legend('topright', legend=labs, col=1:length(labs), lty=1) #
+}
+plot(ridge.var, xvar="lambda", col=1:dim(coef(ridge.var))[1])
+lbs_fun(ridge.var)
+
+```
+
+<p> En augmentant la valeur de Lambda pour régulariser le modèle, nous pouvons voir que les paramètres qui convergent le moins rapidement vers 0 sont les variables "chas", "lstat", "blacks", puis "dis". Ces paramètres sont donc les meilleurs prédicteurs du modèle. Les paramètres "rad" et "indus" convergent également mois rapidement que tout les autres paramètres qui, eux, semblent convergent très rapidement vers 0 et sont donc les moins importants pour la prédiction et l'explication du paramètre "mv". </p> 
+
+```{r echo=FALSE}
+
+plot(ridge.var,xvar="norm")
+lbs_fun(ridge.var)
+plot(ridge.var,xvar="dev")
+lbs_fun(ridge.var)
+
+```
+<p> Les graphes utilisant comme terme de régularisation la norme L1 et la fraction de déviance mettent en valeur la variable "rm" comme un paramètre également important pour la prédiction et l'explication de la variable "mv".</p>
+
+```{r echo=FALSE}
+
+x0 <-as.matrix(Hedonic.train[1:5, -1])
+predict(ridge.var,newx=x0,s=ridge.min$lambda.min)
+predict(ridge.var,newx=x0,s=ridge.min$lambda.1se)
+
+```
+
+<p> Voici ci-dessus les valeurs prédites des Betas pour les deux valeurs de lambdas évaluées. Nous pouvons voir à nouveau que les valeurs des betas sont sensiblement identiques pour les deux modèles. Seul 5 valeurs de betas ont été évaluées, celles correspondants aux variables que la regression ridge a jugé les plus à même de servir de prédicteurs (!!! dire lesquelles, demander au prof si ce que je pense c'est bon !!!) </p>
+
+
+<p> A présent, nous utilisons la régression Lasso pour avoir un choix de prédicteurs plus significatif. </>
+
+```{r echo=FALSE}
+
+lasso <- glmnet(x,y, alpha=1)
+lbs_fun <- function(lasso, ...) {
+        L <- length(lasso$lambda)
+        x <- log(lasso$lambda[L])
+        y <- lasso$beta[, L]
+        labs <- names(y)
+        text(x, y, labels=labs, ...)
+        legend('topright', legend=labs, col=1:length(labs), lty=1) #
+}
+
+plot(lasso, xvar="lambda")
+lbs_fun(lasso)
+
+```
+
+<p> A présent, nous utilisons la méthode Lasso pour régulariser le modèle. Tout d'abord, ce premier graphe sur lequel on voit l'évolution des coefficients de chaque variable en fonction de Lambda nous permet de voir quels sont les variables qui semblent plus efficace pour servir de prédicteur : les variables dont les coefficients sont rapidement réduits à zéro sont les plus mauvais prédicteurs. Ainsi les variables dont les coefficients sont réduits à zéro avec une valeur de lambda plus importante que les autres sont les meilleurs prédicteurs. Grâce à ce graphe, nous pouvons donc observer que les variables "rad", "townid", "chas", "tax", "indus" et "nox" semblent être les plus à même de prédire le modèle. </p>
+
+```{r echo=FALSE}
+plot(lasso,xvar="norm")
+lbs_fun(lasso)
+
+
+```
+<p> Ce second graphe nous amène aux mêmes conclusions que le dernier, à la différence qu'ici le terme de régularisation utilisé est la norme L1. </p>
+
+```{r echo=FALSE}
+lbs_fun2 <- function(lasso, ...) {
+        L <- length(lasso$lambda)
+        x <- log(lasso$lambda[L])
+        y <- lasso$beta[, L]
+        labs <- names(y)
+        text(x, y, labels=labs, ...)
+        legend('topleft', legend=labs, col=1:length(labs), lty=1) #
+}
+plot(lasso,xvar="dev")
+lbs_fun2(lasso)
+
+```
+<p> Le raisonnement et les conclusions sont identiques pour ce troisième graphe. Ici, le terme de régularisation utilisé est la fraction de déviance </p>
+
+
+```{r echo=FALSE}
+lasso.min <-cv.glmnet(x,y,nfolds=10,grouped=FALSE)
+lasso.1se  <-cv.glmnet(x,y,nfolds=n ,grouped=FALSE)
+plot(lasso.min)
+plot(lasso.1se)
+```
+
+```{r echo=FALSE}
+predict(lasso, x0,s=lasso.min$lambda.min)
+predict(lasso, x0,s=lasso.1se$lambda.1se)
+
+```
+<p>Commentaire</p>
+
+```{r echo=FALSE}
+library(ggplot2)
+n <-nrow(Hedonic.train)
+p <-ncol(Hedonic.train) 
+AIC  <- n*log(colMeans((y -predict(lasso, x))^2)) + 2 * lasso$df
+BIC  <- n*log(colMeans((y -predict(lasso, x))^2)) +log(n) * lasso$df
+eBIC <- n*log(colMeans((y -predict(lasso, x))^2)) +log(p) * lasso$df
+mBIC <- n*log(colMeans((y -predict(lasso, x))^2)) + (log(n) + 2 *log(p)) * lasso$df
+d <-data.frame(lambda  =rep(lasso$lambda, 4),value   =c(AIC, BIC, eBIC, mBIC),critere =factor(rep(c("AIC","BIC","eBIC","mBIC"), each=length(lasso$lambda))))
+ggplot(d,aes(x=lambda,y=value,colour=critere,group=critere)) +geom_line() +scale_x_log10()
+lambda.min.BIC  <-lasso$lambda[which.min(BIC)]
+lambda.min.mBIC <-lasso$lambda[which.min(mBIC)]
+```
+<p> commentaires </p>
+
+
+
+#Quatrième partie: évaluation de la qualité des modèles
+```{r echo=FLASE}
+Hedonic.test$chas<-as.numeric(Hedonic.test$chas)
+y.test <-Hedonic.test$mv
+x.test <-as.matrix(Hedonic.test[, -1])
+err.null <-mean((y.test -predict(null, Hedonic.test))^2)
+err.full <-mean((y.test -predict(full, Hedonic.test))^2)
+
+err.sAIC <-mean((y.test -predict(step.AIC, Hedonic.test))^2)
+err.sBIC <-mean((y.test -predict(step.BIC, Hedonic.test))^2)
+
+err.ridge.min  <-mean((y.test -predict(ridge.var, newx=x.test, s=ridge.min$lambda.min))^2)
+
+err.ridge.1se  <-mean((y.test -predict(ridge.var, newx=x.test, s=ridge.1se$lambda.min))^2)
+
+err.lasso.min  <-mean((y.test -predict(lasso, newx=x.test, s=lasso.min$lambda.min))^2)
+
+err.lasso.1se  <-mean((y.test -predict(lasso, newx=x.test, s=lasso.1se$lambda.min))^2)
+
+err.lasso.BIC  <-mean((y.test -predict(lasso, newx=x.test, s=lambda.min.BIC))^2)
+
+err.lasso.mBIC <-mean((y.test -predict(lasso,newx=x.test, s=lambda.min.mBIC))^2)
+res <-data.frame(modele =c("null", "full", "step.AIC", "step.BIC", "ridge.CVmin","ridge.CV1se", "lasso.CVmin", "lasso.CV1se","lasso.BIC","lasso.mBIC"),erreur =c(err.null, err.full, err.sAIC, err.sBIC, err.ridge.min, err.ridge.1se,err.lasso.min, err.lasso.1se, err.lasso.BIC, err.lasso.mBIC))
+
+print(res)
+```
+
+<p> Commentaires </p>
+
+<p> utilisation de base polynomiale et de splines </p>
+```{r}
+install.packages("splines")
+library(splines)
+
+poly <- lm(mv ~ bs(crim) + bs(indus)  + bs(nox) + bs(rm) + bs(age) + bs(dis) + bs(rad)+ bs(tax) + bs(ptratio) + bs(blacks) + bs(lstat) , data = Hedonic.train )
+summary(poly)
+predict(poly, Hedonic.test )
+x.test <-as.matrix(Hedonic.test[, -1])
+err.poly <-mean((y.test -predict(poly, Hedonic.test))^2)
+res2 <-data.frame(modele =c("null", "full", "step.AIC", "step.BIC", "ridge.CVmin","ridge.CV1se", "lasso.CVmin", "lasso.CV1se","lasso.BIC","lasso.mBIC", "poly"),erreur =c(err.null, err.full, err.sAIC, err.sBIC, err.ridge.min, err.ridge.1se,err.lasso.min, err.lasso.1se, err.lasso.BIC, err.lasso.mBIC, err.poly))
+print(res2)
+step(poly)
+poly2 <- lm(mv ~  bs(indus)  + bs(age) + bs(rad)+ bs(tax)  + bs(blacks) + bs(dis) + bs(ptratio) + bs(nox) , data = Hedonic.train )
+summary(poly2)
+predict(poly2, Hedonic.test )
+
+err.poly2 <-mean((y.test -predict(poly2, Hedonic.test))^2)
+res3 <-data.frame(modele =c("null", "full", "step.AIC", "step.BIC", "ridge.CVmin","ridge.CV1se", "lasso.CVmin", "lasso.CV1se","lasso.BIC","lasso.mBIC", "poly2"),erreur =c(err.null, err.full, err.sAIC, err.sBIC, err.ridge.min, err.ridge.1se,err.lasso.min, err.lasso.1se, err.lasso.BIC, err.lasso.mBIC, err.poly2))
+print(res3)
+
+poly3 <- lm(mv ~  bs(indus*age)  +  bs(age*rad)  +  bs(rad*tax)+ bs(tax*blacks)  + bs(blacks*dis) + bs(dis*ptratio) + bs(ptratio*nox) + bs(nox)   , data = Hedonic.train )
+Hedonic2 <- Hedonic.train
+Hedonic2$chas <- NULL
+Hedonic2$townid <- NULL
+ncol(Hedonic2)
+head(Hedonic.train)
+
+for(i in 2:12){
+  for(j in (i+1):13){
+#    assign(paste(paste("var",1,sep="_"),2,sep="_"),(Hedonic2[,1]*Hedonic2[,2]))
+#    var1
+#    eval(paste("var",1,sep=""))
+#      Hedonic2 <- cbind(Hedonic2,paste("var",1,sep=""))
+    Hedonic2 <- cbind(Hedonic2,Hedonic2[,i]*Hedonic2[,j])
+    }
+}
+
+colnames(Hedonic2) <- 1:ncol(Hedonic2)
+ncol(Hedonic2)
+colnames(Hedonic2)[1] <- "mv"
+
+step.AIC <-step(lm(mv~.,Hedonic2),k=2, direction="both")
+
+step.BIC <-step(lm(mv~.,Hedonic2),k=log(nrow(Hedonic2)))
+
+aic.anova<-step.AIC$anova
+aic.anova
+
+bic.anova<-step.BIC$anova
+bic.anova
+
+summary(step.AIC)
+Hedonic.train<-Hedonic2
+head(Hedonic2)
+ncol(Hedonic2)
+summary(poly3)
+predict(poly3, Hedonic.test )
+
+err.poly3 <-mean((y.test -predict(poly3, Hedonic.test))^2)
+res4 <-data.frame(modele =c("null", "full", "step.AIC", "step.BIC", "ridge.CVmin","ridge.CV1se", "lasso.CVmin", "lasso.CV1se","lasso.BIC","lasso.mBIC", "poly3"),erreur =c(err.null, err.full, err.sAIC, err.sBIC, err.ridge.min, err.ridge.1se,err.lasso.min, err.lasso.1se, err.lasso.BIC, err.lasso.mBIC, err.poly3))
+print(res4)
+
+
+```
+
+<p> On remarque qu'on a une plus grande erreur dans le mod�le avec les polynomes que pour les autres mod�les d�finit auparavant </p>
